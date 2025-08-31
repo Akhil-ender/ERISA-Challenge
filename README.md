@@ -57,9 +57,9 @@ A modern web application for managing ERISA claims with advanced filtering, flag
    ```
 
 6. **Visit the application:**
-   - Main application: http://127.0.0.1:8000/
-   - Admin interface: http://127.0.0.1:8000/admin/
-   - Login/Register: http://127.0.0.1:8000/login/ or http://127.0.0.1:8000/register/
+   - Main application: Will run on Port 8000
+   - Admin interface: /admin/
+   - Login/Register: /login/ or /register/
 
 ## Data Structure
 
