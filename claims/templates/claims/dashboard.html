@@ -1,0 +1,328 @@
+{% extends 'claims/base.html' %}
+
+{% block title %}Dashboard - ERISA Claims Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>📊 Dashboard</h1>
+    <div class="text-muted">
+        <small>Last updated: {{ "now"|date:"M d, Y H:i" }}</small>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-header">Total Claims</div>
+            <div class="card-body">
+                <h4 class="card-title">{{ total_claims|floatformat:0 }}</h4>
+                <p class="card-text">All claims in the system</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-warning mb-3">
+            <div class="card-header">Flagged Claims</div>
+            <div class="card-body">
+                <h4 class="card-title">{{ flagged_claims }}</h4>
+                <p class="card-text">{{ flagged_claims|floatformat:1 }}% of total claims</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-danger mb-3">
+            <div class="card-header">Total Underpayment</div>
+            <div class="card-body">
+                <h4 class="card-title">${{ financial_stats.total_underpayment|floatformat:0 }}</h4>
+                <p class="card-text">Billed vs paid difference</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-header">Avg Underpayment</div>
+            <div class="card-body">
+                <h4 class="card-title">${{ financial_stats.avg_underpayment|floatformat:0 }}</h4>
+                <p class="card-text">Per claim average</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Financial Overview -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">💰 Financial Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h6 class="text-primary">Total Billed</h6>
+                        <h4>${{ financial_stats.total_billed|floatformat:0 }}</h4>
+                    </div>
+                    <div class="col-4">
+                        <h6 class="text-success">Total Paid</h6>
+                        <h4>${{ financial_stats.total_paid|floatformat:0 }}</h4>
+                    </div>
+                    <div class="col-4">
+                        <h6 class="text-danger">Underpaid Claims</h6>
+                        <h4>{{ financial_stats.underpaid_claims }}</h4>
+                        <small class="text-muted">Claims with >50% underpayment</small>
+                    </div>
+                </div>
+                <hr>
+                <div class="row text-center">
+                    <div class="col-6">
+                        <small class="text-muted">Average Billed</small><br>
+                        <strong>${{ financial_stats.avg_billed|floatformat:0 }}</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Average Paid</small><br>
+                        <strong>${{ financial_stats.avg_paid|floatformat:0 }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📊 Top Insurers</h5>
+            </div>
+            <div class="card-body">
+                {% for insurer in top_insurers %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>{{ insurer.insurer_name }}</strong><br>
+                        <small class="text-muted">{{ insurer.claim_count }} claims</small>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-success">${{ insurer.total_paid|floatformat:0 }}</small><br>
+                        <small class="text-muted">of ${{ insurer.total_billed|floatformat:0 }}</small>
+                    </div>
+                </div>
+                {% if not forloop.last %}<hr class="my-2">{% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analysis Row -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📈 Claims by Status</h5>
+            </div>
+            <div class="card-body">
+                {% for status_name, count in status_counts.items %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>{{ status_name }}</span>
+                        <span class="badge bg-secondary">{{ count }}</span>
+                    </div>
+                    <div class="progress mt-1" style="height: 5px;">
+                        {% if total_claims > 0 %}
+                            {% widthratio count total_claims 100 as percentage %}
+                            <div class="progress-bar" style="width: {{ percentage }}%"></div>
+                        {% else %}
+                            <div class="progress-bar" style="width: 0%"></div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">🚫 Denial Analysis</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <h4 class="text-danger">{{ denial_stats.count }}</h4>
+                    <p class="text-muted">Denied Claims</p>
+                    <small class="text-muted">${{ denial_stats.total_amount|floatformat:0 }} total value</small>
+                </div>
+                <hr>
+                <h6 class="mb-2">Top Denial Reasons:</h6>
+                {% for reason in top_denial_reasons %}
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <small>{{ reason.denial_reason|truncatechars:25 }}</small>
+                    <span class="badge bg-light text-dark">{{ reason.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">🏃 Recent Activity</h5>
+            </div>
+            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                {% if recent_notes %}
+                    <h6 class="text-primary">💬 Recent Notes</h6>
+                    {% for note in recent_notes|slice:":3" %}
+                    <div class="mb-2 p-2 bg-light rounded">
+                        <small><strong>Claim #{{ note.claim.id }}</strong></small><br>
+                        <small>{{ note.content|truncatechars:50 }}</small><br>
+                        <small class="text-muted">by {{ note.created_by.username }} - {{ note.created_at|timesince }} ago</small>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+                
+                {% if recent_flags %}
+                    <h6 class="text-warning mt-3">🚩 Recent Flags</h6>
+                    {% for flag in recent_flags|slice:":3" %}
+                    <div class="mb-2 p-2 bg-warning bg-opacity-10 rounded">
+                        <small><strong>Claim #{{ flag.claim.id }}</strong></small><br>
+                        <small>{{ flag.get_reason_display }}</small><br>
+                        <small class="text-muted">by {{ flag.flagged_by.username }} - {{ flag.created_at|timesince }} ago</small>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+    
+    <!-- Quick Actions -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'claims:claim_list' %}" class="btn btn-outline-primary">
+                        📋 View All Claims
+                    </a>
+                    <a href="{% url 'claims:claim_list' %}?flagged=true" class="btn btn-outline-warning">
+                        🚩 Review Flagged Claims
+                    </a>
+                    <a href="{% url 'claims:claim_list' %}?status=pending" class="btn btn-outline-info">
+                        ⏳ Process Pending Claims
+                    </a>
+                    <a href="{% url 'claims:csv_upload' %}" class="btn btn-outline-info">
+                        📤 Upload CSV Data
+                    </a>
+                    <a href="/admin/claims/claim/add/" class="btn btn-outline-success">
+                        ➕ Add New Claim
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Claims -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Recent Claims</h5>
+        <a href="{% url 'claims:claim_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+    </div>
+    <div class="card-body">
+        {% if recent_claims %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Patient</th>
+                            <th>Insurer</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for claim in recent_claims %}
+                        <tr class="status-{{ claim.status }}">
+                            <td>
+                                <a href="{% url 'claims:claim_detail' claim.id %}" class="text-decoration-none">
+                                    #{{ claim.id }}
+                                </a>
+                            </td>
+                            <td>{{ claim.patient_name }}</td>
+                            <td>{{ claim.insurer_name }}</td>
+                            <td>${{ claim.billed_amount|floatformat:2 }}</td>
+                            <td>
+                                <span class="badge bg-{% if claim.status == 'approved' %}success{% elif claim.status == 'denied' %}danger{% elif claim.status == 'pending' %}warning{% else %}info{% endif %}">
+                                    {{ claim.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ claim.created_at|date:"M d, Y" }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'claims:claim_detail' claim.id %}" class="btn btn-outline-primary btn-sm">
+                                        👁️ View
+                                    </a>
+                                    {% if claim.is_flagged %}
+                                        <span class="btn btn-warning btn-sm">🚩</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-4">
+                <p class="text-muted">No claims found. <a href="/admin/claims/claim/add/">Add your first claim</a>.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Real-time Updates with Alpine.js -->
+<div x-data="dashboardData()" x-init="init()">
+    <div x-show="showNotification" 
+         x-transition 
+         class="position-fixed top-0 end-0 m-3" 
+         style="z-index: 1050;">
+        <div class="alert alert-info alert-dismissible fade show">
+            <span x-text="notificationMessage"></span>
+            <button type="button" class="btn-close" @click="showNotification = false"></button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function dashboardData() {
+    return {
+        showNotification: false,
+        notificationMessage: '',
+        
+        init() {
+            // Simulate real-time updates (in a real app, you'd use WebSockets)
+            setInterval(() => {
+                if (Math.random() > 0.95) { // 5% chance every 5 seconds
+                    this.showNotification = true;
+                    this.notificationMessage = 'New claim received!';
+                    setTimeout(() => {
+                        this.showNotification = false;
+                    }, 3000);
+                }
+            }, 5000);
+        }
+    }
+}
+</script>
+{% endblock %}

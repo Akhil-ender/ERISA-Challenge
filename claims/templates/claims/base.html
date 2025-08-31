@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ERISA Claims Management{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+        }
+        
+        .main-content {
+            padding: 2rem;
+        }
+        
+        .claim-card {
+            transition: transform 0.2s ease-in-out;
+        }
+        
+        .claim-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .search-results {
+            position: absolute;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .note-item {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        
+        .status-pending { background-color: #fff3cd !important; }
+        .status-approved { background-color: #d1edff !important; }
+        .status-denied { background-color: #f8d7da !important; }
+        .status-processing { background-color: #cce7ff !important; }
+        .status-review { background-color: #e2e3e5 !important; }
+        
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 500ms ease-in;
+        }
+        
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+        }
+        
+        .loading {
+            background: linear-gradient(90deg, #f0f0f0 25%, transparent 37%, transparent 63%, #f0f0f0 75%);
+            background-size: 400% 100%;
+            animation: shimmer 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 sidebar p-3">
+                <div class="d-flex flex-column h-100">
+                    <h4 class="mb-4">ERISA Claims</h4>
+                    
+                    <ul class="nav nav-pills flex-column mb-auto">
+                        <li class="nav-item">
+                            <a href="{% url 'claims:dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                                📊 Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{% url 'claims:claim_list' %}" class="nav-link {% if request.resolver_match.url_name == 'claim_list' %}active{% endif %}">
+                                📋 All Claims
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{% url 'claims:claim_list' %}?flagged=true" class="nav-link">
+                                🚩 Flagged Claims
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{% url 'claims:claim_list' %}?status=pending" class="nav-link">
+                                ⏳ Pending Claims
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{% url 'claims:csv_upload' %}" class="nav-link">
+                                📤 Upload CSV
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <hr>
+                    
+                    <!-- Live Search -->
+                    <div class="position-relative" x-data="{ showResults: false }">
+                        <input type="text" 
+                               class="form-control" 
+                               placeholder="Quick search..." 
+                               hx-get="{% url 'claims:search_claims' %}"
+                               hx-trigger="keyup changed delay:300ms"
+                               hx-target="#search-results"
+                               hx-vals='{"q": this.value}'
+                               @focus="showResults = true"
+                               @blur="setTimeout(() => showResults = false, 200)">
+                        
+                        <div id="search-results" 
+                             class="search-results w-100"
+                             x-show="showResults"
+                             x-transition></div>
+                    </div>
+                    
+                    <div class="mt-auto">
+                        {% if user.is_authenticated %}
+                            <div class="dropdown">
+                                <button class="btn btn-outline-primary btn-sm dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
+                                    👤 {{ user.username }}
+                                </button>
+                                <ul class="dropdown-menu w-100">
+                                    <li><a class="dropdown-item" href="{% url 'claims:profile' %}">📊 Profile</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="{% url 'claims:logout' %}">🚪 Logout</a></li>
+                                </ul>
+                            </div>
+                        {% else %}
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'claims:login' %}" class="btn btn-primary btn-sm">
+                                    🔐 Login
+                                </a>
+                                <a href="{% url 'claims:register' %}" class="btn btn-outline-primary btn-sm">
+                                    📝 Register
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </nav>
+            
+            <!-- Main Content -->
+            <main class="col-md-9 col-lg-10 main-content">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- HTMX Config -->
+    <script>
+        // Add CSRF token to HTMX requests
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        });
+        
+        // Show loading states
+        document.body.addEventListener('htmx:beforeRequest', (event) => {
+            const indicator = event.target.querySelector('.htmx-indicator');
+            if (indicator) {
+                indicator.style.opacity = '1';
+            }
+        });
+        
+        document.body.addEventListener('htmx:afterRequest', (event) => {
+            const indicator = event.target.querySelector('.htmx-indicator');
+            if (indicator) {
+                indicator.style.opacity = '0';
+            }
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,173 @@
+{% extends 'claims/base.html' %}
+
+{% block title %}Profile - {{ user.username }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>👤 Profile: {{ user.username }}</h1>
+    <a href="{% url 'claims:dashboard' %}" class="btn btn-outline-secondary">← Back to Dashboard</a>
+</div>
+
+<!-- User Stats -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body text-center">
+                <h3>{{ stats.notes_count }}</h3>
+                <p class="mb-0">Notes Added</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-warning">
+            <div class="card-body text-center">
+                <h3>{{ stats.flags_count }}</h3>
+                <p class="mb-0">Claims Flagged</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-body text-center">
+                <h3>{{ stats.resolved_flags }}</h3>
+                <p class="mb-0">Flags Resolved</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity History -->
+<div class="row">
+    <!-- Recent Notes -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">💬 Recent Notes</h5>
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% if user_notes %}
+                    {% for note in user_notes %}
+                    <div class="mb-3 p-3 border rounded">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <a href="{% url 'claims:claim_detail' note.claim.id %}" class="text-decoration-none">
+                                <strong>Claim #{{ note.claim.id }}</strong>
+                            </a>
+                            <small class="text-muted">{{ note.created_at|date:"M d, Y H:i" }}</small>
+                        </div>
+                        <p class="mb-0">{{ note.content|linebreaks }}</p>
+                        <hr class="my-2">
+                        <small class="text-muted">
+                            Patient: {{ note.claim.patient_name }}<br>
+                            Insurer: {{ note.claim.insurer_name }}
+                        </small>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <p>No notes added yet.</p>
+                        <a href="{% url 'claims:claim_list' %}" class="btn btn-outline-primary">
+                            Browse Claims to Add Notes
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Flags -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">🚩 Recent Flags</h5>
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% if user_flags %}
+                    {% for flag in user_flags %}
+                    <div class="mb-3 p-3 border rounded {% if flag.is_resolved %}bg-light{% else %}bg-warning bg-opacity-10{% endif %}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <a href="{% url 'claims:claim_detail' flag.claim.id %}" class="text-decoration-none">
+                                <strong>Claim #{{ flag.claim.id }}</strong>
+                            </a>
+                            <div>
+                                {% if flag.is_resolved %}
+                                    <span class="badge bg-success">✓ Resolved</span>
+                                {% else %}
+                                    <span class="badge bg-warning">! Active</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <p class="mb-1"><strong>{{ flag.get_reason_display }}</strong></p>
+                        {% if flag.description %}
+                            <p class="mb-2">{{ flag.description }}</p>
+                        {% endif %}
+                        <hr class="my-2">
+                        <small class="text-muted">
+                            Patient: {{ flag.claim.patient_name }}<br>
+                            Flagged: {{ flag.created_at|date:"M d, Y H:i" }}
+                            {% if flag.is_resolved %}
+                                <br>Resolved: {{ flag.resolved_at|date:"M d, Y H:i" }}
+                                {% if flag.resolved_by %}
+                                    by {{ flag.resolved_by.username }}
+                                {% endif %}
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <p>No flags created yet.</p>
+                        <a href="{% url 'claims:claim_list' %}" class="btn btn-outline-warning">
+                            Browse Claims to Add Flags
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Account Info -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">ℹ️ Account Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Username:</dt>
+                            <dd class="col-sm-8">{{ user.username }}</dd>
+                            
+                            <dt class="col-sm-4">Email:</dt>
+                            <dd class="col-sm-8">{{ user.email|default:"Not provided" }}</dd>
+                            
+                            <dt class="col-sm-4">Joined:</dt>
+                            <dd class="col-sm-8">{{ user.date_joined|date:"M d, Y" }}</dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Last Login:</dt>
+                            <dd class="col-sm-8">{{ user.last_login|date:"M d, Y H:i"|default:"Never" }}</dd>
+                            
+                            <dt class="col-sm-4">Staff Status:</dt>
+                            <dd class="col-sm-8">
+                                {% if user.is_staff %}
+                                    <span class="badge bg-success">Staff</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Regular User</span>
+                                {% endif %}
+                            </dd>
+                            
+                            <dt class="col-sm-4">Total Activity:</dt>
+                            <dd class="col-sm-8">{{ stats.notes_count|add:stats.flags_count }} actions</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

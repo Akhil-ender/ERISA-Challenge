@@ -1,0 +1,324 @@
+{% extends 'claims/base.html' %}
+
+{% block title %}Claim #{{ claim.id }} - ERISA Claims Management{% endblock %}
+
+{% block content %}
+<div x-data="claimDetail({{ claim.id }})">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>📄 Claim #{{ claim.id }}</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'claims:dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'claims:claim_list' %}">Claims</a></li>
+                    <li class="breadcrumb-item active">Claim #{{ claim.id }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'claims:claim_list' %}" class="btn btn-outline-secondary">← Back to List</a>
+            <a href="/admin/claims/claim/{{ claim.id }}/change/" class="btn btn-outline-primary">✏️ Edit</a>
+        </div>
+    </div>
+
+    <!-- Status and Flag Bar -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="alert alert-{% if claim.status == 'approved' %}success{% elif claim.status == 'denied' %}danger{% elif claim.status == 'pending' %}warning{% else %}info{% endif %} d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>Status:</strong> 
+                    <span class="badge bg-{% if claim.status == 'approved' %}success{% elif claim.status == 'denied' %}danger{% elif claim.status == 'pending' %}warning{% else %}info{% endif %} fs-6">
+                        {{ claim.get_status_display }}
+                    </span>
+                </div>
+                <div hx-post="{% url 'claims:toggle_flag' claim.id %}" 
+                     hx-target="this" 
+                     hx-swap="innerHTML">
+                    <button class="btn {% if claim.is_flagged %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                        {% if claim.is_flagged %}🏳️ Unflag Claim{% else %}🚩 Flag Claim{% endif %}
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Last Updated</h6>
+                    <p class="card-text">{{ claim.updated_at|date:"M d, Y H:i" }}</p>
+                    {% if claim.updated_by %}
+                        <small class="text-muted">by {{ claim.updated_by.username }}</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Row -->
+    <div class="row">
+        <!-- Left Column - Claim Details -->
+        <div class="col-md-8">
+            <!-- Basic Information -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">📋 Basic Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-5">Patient Name:</dt>
+                                <dd class="col-sm-7">{{ claim.patient_name }}</dd>
+                                
+                                <dt class="col-sm-5">Insurer:</dt>
+                                <dd class="col-sm-7">{{ claim.insurer_name }}</dd>
+                                
+                                <dt class="col-sm-5">Discharge Date:</dt>
+                                <dd class="col-sm-7">{{ claim.discharge_date|date:"M d, Y" }}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-5">Billed Amount:</dt>
+                                <dd class="col-sm-7 fw-bold text-primary">${{ claim.billed_amount|floatformat:2 }}</dd>
+                                
+                                <dt class="col-sm-5">Paid Amount:</dt>
+                                <dd class="col-sm-7 fw-bold text-success">${{ claim.paid_amount|floatformat:2 }}</dd>
+                                
+                                <dt class="col-sm-5">Difference:</dt>
+                                <dd class="col-sm-7 fw-bold {% if claim.billed_amount > claim.paid_amount %}text-warning{% else %}text-success{% endif %}">
+                                    ${{ claim.billed_amount|add:claim.paid_amount|floatformat:2 }}
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Information -->
+            {% if claim_detail %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🔍 Detailed Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <dl class="row">
+                                {% if claim_detail.cpt_codes %}
+                                <dt class="col-sm-3">CPT Codes:</dt>
+                                <dd class="col-sm-9">
+                                    {% for code in claim_detail.get_cpt_codes_list %}
+                                        <span class="badge bg-info me-1">{{ code }}</span>
+                                    {% endfor %}
+                                </dd>
+                                {% endif %}
+                                
+                                {% if claim_detail.denial_reason %}
+                                <dt class="col-sm-3">Denial Reason:</dt>
+                                <dd class="col-sm-9">
+                                    <div class="alert alert-danger">
+                                        {{ claim_detail.denial_reason }}
+                                    </div>
+                                </dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Notes Section -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">💬 Notes & Comments</h5>
+                    <button class="btn btn-sm btn-outline-primary" 
+                            @click="showAddNote = !showAddNote">
+                        {% if user.is_authenticated %}+ Add Note{% else %}Login to Add Notes{% endif %}
+                    </button>
+                </div>
+                
+                <!-- Add Note Form -->
+                <div x-show="showAddNote" x-transition class="card-body border-bottom">
+                    {% if user.is_authenticated %}
+                    <form hx-post="{% url 'claims:add_note' claim.id %}"
+                          hx-target="#notes-list"
+                          hx-swap="afterbegin"
+                          @htmx:afterRequest="$el.reset(); showAddNote = false">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <textarea class="form-control" 
+                                      name="content" 
+                                      rows="3" 
+                                      placeholder="Add your note or comment..."
+                                      required></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" 
+                                    class="btn btn-secondary btn-sm"
+                                    @click="showAddNote = false">Cancel</button>
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <span class="htmx-indicator spinner-border spinner-border-sm me-1" role="status"></span>
+                                Add Note
+                            </button>
+                        </div>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Please log in to add notes to this claim.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Notes List -->
+                <div class="card-body">
+                    <div id="notes-list">
+                        {% for note in notes %}
+                        <div class="note-item mb-3 p-3 border rounded">
+                            <div class="note-content mb-2">{{ note.content|linebreaks }}</div>
+                            <small class="text-muted">
+                                By <strong>{{ note.created_by.username }}</strong> on {{ note.created_at|date:"M d, Y \a\t H:i" }}
+                                {% if note.updated_at != note.created_at %}
+                                    <em>(edited {{ note.updated_at|date:"M d, Y \a\t H:i" }})</em>
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-4 text-muted">
+                            No notes yet. Be the first to add a comment!
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column - Flags and Metadata -->
+        <div class="col-md-4">
+            <!-- Flags -->
+            {% if flags %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">🚩 Flags</h6>
+                </div>
+                <div class="card-body">
+                    {% for flag in flags %}
+                    <div class="alert alert-{% if flag.is_resolved %}success{% else %}warning{% endif %} p-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>{{ flag.get_reason_display }}</strong>
+                                {% if flag.description %}
+                                    <br><small>{{ flag.description }}</small>
+                                {% endif %}
+                            </div>
+                            {% if flag.is_resolved %}
+                                <span class="badge bg-success">✓</span>
+                            {% else %}
+                                <span class="badge bg-warning">!</span>
+                            {% endif %}
+                        </div>
+                        <hr class="my-1">
+                        <small class="text-muted">
+                            Flagged by {{ flag.flagged_by.username }} on {{ flag.created_at|date:"M d, Y" }}
+                            {% if flag.is_resolved %}
+                                <br>Resolved by {{ flag.resolved_by.username }} on {{ flag.resolved_at|date:"M d, Y" }}
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Metadata -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">📊 Metadata</h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row small">
+                        <dt class="col-6">Created:</dt>
+                        <dd class="col-6">{{ claim.created_at|date:"M d, Y H:i" }}</dd>
+                        
+                        {% if claim.created_by %}
+                        <dt class="col-6">Created by:</dt>
+                        <dd class="col-6">{{ claim.created_by.username }}</dd>
+                        {% endif %}
+                        
+                        <dt class="col-6">Last Updated:</dt>
+                        <dd class="col-6">{{ claim.updated_at|date:"M d, Y H:i" }}</dd>
+                        
+                        {% if claim.updated_by %}
+                        <dt class="col-6">Updated by:</dt>
+                        <dd class="col-6">{{ claim.updated_by.username }}</dd>
+                        {% endif %}
+                        
+                        <dt class="col-6">Notes Count:</dt>
+                        <dd class="col-6">{{ notes.count }}</dd>
+                        
+                        <dt class="col-6">Flags Count:</dt>
+                        <dd class="col-6">{{ flags.count }}</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">⚡ Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/admin/claims/claim/{{ claim.id }}/change/" class="btn btn-outline-primary btn-sm">
+                            ✏️ Edit Claim
+                        </a>
+                        <button class="btn btn-outline-info btn-sm" onclick="window.print()">
+                            🖨️ Print Details
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" @click="exportToCsv()">
+                            📊 Export Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function claimDetail(claimId) {
+    return {
+        claimId: claimId,
+        showAddNote: false,
+        
+        exportToCsv() {
+            // Simple CSV export functionality
+            const data = [
+                ['Field', 'Value'],
+                ['Claim ID', claimId],
+                ['Patient Name', '{{ claim.patient_name|escapejs }}'],
+                ['Insurer', '{{ claim.insurer_name|escapejs }}'],
+                ['Billed Amount', '{{ claim.billed_amount }}'],
+                ['Paid Amount', '{{ claim.paid_amount }}'],
+                ['Status', '{{ claim.get_status_display|escapejs }}'],
+                ['Discharge Date', '{{ claim.discharge_date|date:"Y-m-d" }}'],
+                ['Is Flagged', '{{ claim.is_flagged|yesno:"Yes,No" }}']
+            ];
+            
+            const csvContent = data.map(row => row.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `claim_${claimId}_details.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+    }
+}
+</script>
+{% endblock %}

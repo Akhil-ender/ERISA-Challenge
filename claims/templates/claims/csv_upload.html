@@ -1,0 +1,241 @@
+{% extends 'claims/base.html' %}
+
+{% block title %}CSV Upload - ERISA Claims Management{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>📤 CSV Upload</h1>
+            <a href="{% url 'claims:dashboard' %}" class="btn btn-outline-secondary">← Back to Dashboard</a>
+        </div>
+
+        <!-- Current Data Status -->
+        <div class="alert alert-info">
+            <h6>📊 Current Database Status</h6>
+            <div class="row">
+                <div class="col-6">
+                    <strong>Claims:</strong> {{ current_stats.total_claims|floatformat:0 }}
+                </div>
+                <div class="col-6">
+                    <strong>Details:</strong> {{ current_stats.total_details|floatformat:0 }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Form -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📁 Upload New CSV Files</h5>
+            </div>
+            <div class="card-body" x-data="uploadForm()">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <!-- Upload Mode Selection -->
+                    <div class="mb-4">
+                        <label class="form-label">📋 Upload Mode</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="upload_mode" value="append" id="append" checked x-model="uploadMode">
+                                    <label class="form-check-label" for="append">
+                                        <strong>📈 Append</strong><br>
+                                        <small class="text-muted">Add new data to existing claims</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="upload_mode" value="overwrite" id="overwrite" x-model="uploadMode">
+                                    <label class="form-check-label" for="overwrite">
+                                        <strong>🔄 Overwrite</strong><br>
+                                        <small class="text-muted">Replace all existing data</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Warning for overwrite mode -->
+                        <div x-show="uploadMode === 'overwrite'" x-transition class="alert alert-warning mt-3">
+                            <strong>⚠️ Warning:</strong> This will permanently delete all existing claims, notes, and flags!
+                        </div>
+                    </div>
+
+                    <!-- File Upload Section -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="claims_file" class="form-label">📋 Claims List CSV</label>
+                                <input type="file" 
+                                       class="form-control" 
+                                       id="claims_file" 
+                                       name="claims_file" 
+                                       accept=".csv"
+                                       required
+                                       @change="validateFile($event, 'claims')">
+                                <div class="form-text">
+                                    Required columns: id, patient_name, billed_amount, paid_amount, status, insurer_name, discharge_date
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="details_file" class="form-label">🔍 Claim Details CSV</label>
+                                <input type="file" 
+                                       class="form-control" 
+                                       id="details_file" 
+                                       name="details_file" 
+                                       accept=".csv"
+                                       required
+                                       @change="validateFile($event, 'details')">
+                                <div class="form-text">
+                                    Required columns: id, claim_id, denial_reason, cpt_codes
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File Preview -->
+                    <div x-show="showPreview" x-transition class="mb-4">
+                        <h6>📄 File Preview</h6>
+                        <div class="row">
+                            <div class="col-md-6" x-show="claimsPreview">
+                                <div class="card">
+                                    <div class="card-header">Claims File</div>
+                                    <div class="card-body">
+                                        <small>
+                                            <strong>Rows:</strong> <span x-text="claimsRows"></span><br>
+                                            <strong>Size:</strong> <span x-text="claimsSize"></span>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6" x-show="detailsPreview">
+                                <div class="card">
+                                    <div class="card-header">Details File</div>
+                                    <div class="card-body">
+                                        <small>
+                                            <strong>Rows:</strong> <span x-text="detailsRows"></span><br>
+                                            <strong>Size:</strong> <span x-text="detailsSize"></span>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="button" class="btn btn-outline-secondary" onclick="history.back()">Cancel</button>
+                        <button type="submit" 
+                                class="btn btn-primary"
+                                :class="uploadMode === 'overwrite' ? 'btn-danger' : 'btn-primary'"
+                                x-text="uploadMode === 'overwrite' ? '🔄 Overwrite Data' : '📈 Upload & Append'">
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Help Section -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">📖 CSV Format Requirements</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Claims List CSV Format:</h6>
+                        <ul class="small">
+                            <li><strong>Delimiter:</strong> Pipe (|)</li>
+                            <li><strong>Encoding:</strong> UTF-8</li>
+                            <li><strong>Date Format:</strong> YYYY-MM-DD</li>
+                            <li><strong>Status Values:</strong> Paid, Denied, Under Review, Processing, Pending</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Claim Details CSV Format:</h6>
+                        <ul class="small">
+                            <li><strong>Delimiter:</strong> Pipe (|)</li>
+                            <li><strong>CPT Codes:</strong> Comma-separated</li>
+                            <li><strong>Denial Reason:</strong> Use 'N/A' for approved claims</li>
+                            <li><strong>Claim ID:</strong> Must match existing claim IDs</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6>Need sample files?</h6>
+                        <small class="text-muted">Download current data as templates</small>
+                    </div>
+                    <div>
+                        <a href="{% url 'claims:export_csv' %}?type=claims" class="btn btn-outline-primary btn-sm">📥 Download Claims CSV</a>
+                        <a href="{% url 'claims:export_csv' %}?type=details" class="btn btn-outline-secondary btn-sm">📥 Download Details CSV</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function uploadForm() {
+    return {
+        uploadMode: 'append',
+        showPreview: false,
+        claimsPreview: false,
+        detailsPreview: false,
+        claimsRows: 0,
+        claimsSize: '',
+        detailsRows: 0,
+        detailsSize: '',
+        
+        validateFile(event, type) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Format file size
+            const formatSize = (bytes) => {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            };
+            
+            if (type === 'claims') {
+                this.claimsSize = formatSize(file.size);
+                this.claimsPreview = true;
+                this.estimateRows(file, 'claims');
+            } else {
+                this.detailsSize = formatSize(file.size);
+                this.detailsPreview = true;
+                this.estimateRows(file, 'details');
+            }
+            
+            this.showPreview = this.claimsPreview || this.detailsPreview;
+        },
+        
+        estimateRows(file, type) {
+            // Simple estimation: assume average row length and subtract header
+            const avgRowLength = 80; // Rough estimate
+            const estimatedRows = Math.max(0, Math.floor(file.size / avgRowLength) - 1);
+            
+            if (type === 'claims') {
+                this.claimsRows = estimatedRows;
+            } else {
+                this.detailsRows = estimatedRows;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

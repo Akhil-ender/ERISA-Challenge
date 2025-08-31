@@ -1,0 +1,150 @@
+{% extends 'claims/base.html' %}
+
+{% block title %}Register - ERISA Claims Management{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card">
+            <div class="card-header text-center">
+                <h4 class="mb-0">📝 Create Account</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" x-data="registrationForm()">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="username" 
+                               name="username" 
+                               required
+                               autofocus
+                               x-model="username"
+                               @blur="checkUsername()">
+                        <div x-show="usernameError" x-text="usernameError" class="text-danger small mt-1"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email (Optional)</label>
+                        <input type="email" 
+                               class="form-control" 
+                               id="email" 
+                               name="email"
+                               x-model="email">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" 
+                               class="form-control" 
+                               id="password" 
+                               name="password" 
+                               required
+                               x-model="password"
+                               @input="validatePassword()">
+                        <div x-show="passwordError" x-text="passwordError" class="text-danger small mt-1"></div>
+                        <div class="form-text">Minimum 6 characters</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password_confirm" class="form-label">Confirm Password</label>
+                        <input type="password" 
+                               class="form-control" 
+                               id="password_confirm" 
+                               name="password_confirm" 
+                               required
+                               x-model="passwordConfirm"
+                               @input="validatePasswordMatch()">
+                        <div x-show="passwordMatchError" x-text="passwordMatchError" class="text-danger small mt-1"></div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" 
+                                class="btn btn-success"
+                                :disabled="!isFormValid()">
+                            ✨ Create Account
+                        </button>
+                    </div>
+                </form>
+                
+                <hr>
+                
+                <div class="text-center">
+                    <p class="mb-0">Already have an account?</p>
+                    <a href="{% url 'claims:login' %}" class="btn btn-outline-primary">
+                        Login
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Benefits -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">🎯 Account Benefits</h6>
+            </div>
+            <div class="card-body">
+                <ul class="small mb-0">
+                    <li>Add notes and comments to claims</li>
+                    <li>Flag claims for review</li>
+                    <li>Track your activity history</li>
+                    <li>User-specific annotations</li>
+                    <li>Personalized dashboard</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function registrationForm() {
+    return {
+        username: '',
+        email: '',
+        password: '',
+        passwordConfirm: '',
+        usernameError: '',
+        passwordError: '',
+        passwordMatchError: '',
+        
+        checkUsername() {
+            if (this.username.length < 3) {
+                this.usernameError = 'Username must be at least 3 characters';
+            } else {
+                this.usernameError = '';
+            }
+        },
+        
+        validatePassword() {
+            if (this.password.length < 6) {
+                this.passwordError = 'Password must be at least 6 characters';
+            } else {
+                this.passwordError = '';
+            }
+            this.validatePasswordMatch();
+        },
+        
+        validatePasswordMatch() {
+            if (this.passwordConfirm && this.password !== this.passwordConfirm) {
+                this.passwordMatchError = 'Passwords do not match';
+            } else {
+                this.passwordMatchError = '';
+            }
+        },
+        
+        isFormValid() {
+            return this.username.length >= 3 && 
+                   this.password.length >= 6 && 
+                   this.password === this.passwordConfirm &&
+                   !this.usernameError && 
+                   !this.passwordError && 
+                   !this.passwordMatchError;
+        }
+    }
+}
+</script>
+{% endblock %}
